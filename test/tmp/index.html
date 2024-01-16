@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Streaming</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        video::-webkit-media-controls-panel {
+        display: none !important;
+        opacity: 1 !important;
+        }
+    </style>
+  </head>
+
+  <body>
+    <script src="https://hlsjs.video-dev.org/dist/hls.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+
+
+        <div class="container-fluid">
+
+      <video width="100%" id="video" controls></video>
+        <br>
+      <label for="customRange3" class="form-label">Timeline</label>
+        <input type="range" class="form-range" min="0" max="5" step="1" id="timeSlider">
+
+        <button type="button" onclick="changeRes(this)" w="1920" h="1080" class="btn btn-outline-primary">1920x1080</button>
+        <button type="button" onclick="changeRes(this)" w="720" h="480" class="btn btn-outline-primary">720x480</button>
+        <button type="button" onclick="changeRes(this)" w="256" h="144" class="btn btn-outline-primary">256x144</button>
+        <button type="button" onclick="changeRes(this)" w="96" h="64" class="btn btn-outline-primary">96x64</button>
+
+        </div>
+
+        <div class="toast-container position-fixed bottom-0 end-0 p-3">
+            <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+              <div class="toast-header">
+                <strong class="me-auto" id="title">Placeholder</strong>
+                <small>Just now</small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+              </div>
+              <div class="toast-body" id="content">
+                    Placeholder
+              </div>
+            </div>
+          </div>
+
+    <script>
+    var totalLength = -1;
+    var fileName = "filename.mkv";
+    var offset = 0;
+    var startFrom = "00:00:00";
+    var scale = "1280:720";
+    var rootPath = "http://localhost:8080/"
+
+    const toastElement = document.getElementById('liveToast');
+    const toast = bootstrap.Toast.getOrCreateInstance(toastElement);
+            var video = document.getElementById('video');
+
+    play();
+
+    function showMessage(title, message) {
+        $("#title").text(title);
+        $("#content").text(message);
+        toast.show();
+    }
+
+    function play() {
+       showMessage("Transcoding...", "Please wait while we transcoding your video....");
+       video.pause();
+        $.get(rootPath + 'transCode', { scale: scale, ss: startFrom, file: fileName }, function(uuid) {
+            showMessage("Transcoding Done", "Your video will be played soon.");
+            var url = rootPath + "/tmp/" + uuid + "/playlist.m3u8";
+            //if (Hls.isSupported()) {
+                var hls = new Hls({
+                    debug: true,
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    progressive: true,
+                    backBufferLength: 90
+                });
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MEDIA_ATTACHED, function () {
+                    video.muted = true;
+                    video.play();
+                });
+            //}else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                //video.src = url;
+                //video.addEventListener('canplay', function () {
+                //video.play();
+                //});
+            //}
+            console.log("Start play!");
+      });
+    }
+
+
+      $.getJSON(rootPath + 'fileInfo', { file:fileName }, function(data) {
+            // Handle the JSON response
+            console.log(data.format.duration);
+            totalLength = data.format.duration;
+            $("#timeSlider").attr("max", totalLength);
+      })
+
+      $('#timeSlider').on('change', function() {
+        // This function will be executed when the input value changes
+        var inputValue = $(this).val();
+        startFrom = secondsToHMS(parseInt(offset) + parseInt(inputValue));
+        offset = inputValue;
+        play();
+        // Add your custom logic here
+    });
+
+    $(video).on('timeupdate', function() {
+        // This function will be executed when the video starts playing
+        var currentTime = video.currentTime;
+        console.log(parseInt(offset) + parseInt(currentTime));
+        $("#timeSlider").val(parseInt(offset) + parseInt(currentTime));
+        // Add your custom logic here
+    });
+
+
+    function secondsToHMS(seconds) {
+        var hours = Math.floor(seconds / 3600);
+        var minutes = Math.floor((seconds % 3600) / 60);
+        var remainingSeconds = seconds % 60;
+
+        // Add leading zeros if needed
+        hours = hours < 10 ? '0' + hours : hours;
+        minutes = minutes < 10 ? '0' + minutes : minutes;
+        remainingSeconds = remainingSeconds < 10 ? '0' + remainingSeconds : remainingSeconds;
+
+        return hours + ':' + minutes + ':' + remainingSeconds;
+    }
+
+    function changeRes(btn) {
+        scale = $(btn).attr("w") + ":" + $(btn).attr("h");
+        play();
+    }
+
+    </script>
+ 
+</body>
+</html>
